@@ -2,12 +2,13 @@ package logging
 
 import (
 	"fmt"
-	"github.com/Sirupsen/logrus"
-	"github.com/Sirupsen/logrus/hooks/syslog"
 	"io/ioutil"
 	"log/syslog"
 	"os"
 	"time"
+
+	"github.com/Sirupsen/logrus"
+	"github.com/Sirupsen/logrus/hooks/syslog"
 )
 
 var (

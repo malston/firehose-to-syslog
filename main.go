@@ -2,6 +2,12 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"github.com/boltdb/bolt"
 	"github.com/cloudfoundry-community/firehose-to-syslog/caching"
 	"github.com/cloudfoundry-community/firehose-to-syslog/events"
@@ -9,11 +15,9 @@ import (
 	"github.com/cloudfoundry-community/firehose-to-syslog/firehose"
 	"github.com/cloudfoundry-community/firehose-to-syslog/logging"
 	"github.com/cloudfoundry-community/go-cfclient"
+	devents "github.com/cloudfoundry/sonde-go/events"
 	"github.com/pkg/profile"
 	"gopkg.in/alecthomas/kingpin.v2"
-	"log"
-	"os"
-	"time"
 )
 
 var (
@@ -21,7 +25,7 @@ var (
 	apiEndpoint        = kingpin.Flag("api-endpoint", "Api endpoint address. For bosh-lite installation of CF: https://api.10.244.0.34.xip.io").OverrideDefaultFromEnvar("API_ENDPOINT").Required().String()
 	dopplerEndpoint    = kingpin.Flag("doppler-endpoint", "Overwrite default doppler endpoint return by /v2/info").OverrideDefaultFromEnvar("DOPPLER_ENDPOINT").String()
 	syslogServer       = kingpin.Flag("syslog-server", "Syslog server.").OverrideDefaultFromEnvar("SYSLOG_ENDPOINT").String()
-	subscriptionId     = kingpin.Flag("subscription-id", "Id for the subscription.").Default("firehose").OverrideDefaultFromEnvar("FIREHOSE_SUBSCRIPTION_ID").String()
+	subscriptionID     = kingpin.Flag("subscription-id", "Id for the subscription.").Default("firehose").OverrideDefaultFromEnvar("FIREHOSE_SUBSCRIPTION_ID").String()
 	user               = kingpin.Flag("user", "Admin user.").Default("admin").OverrideDefaultFromEnvar("FIREHOSE_USER").String()
 	password           = kingpin.Flag("password", "Admin password.").Default("admin").OverrideDefaultFromEnvar("FIREHOSE_PASSWORD").String()
 	skipSSLValidation  = kingpin.Flag("skip-ssl-validation", "Please don't").Default("false").OverrideDefaultFromEnvar("SKIP_SSL_VALIDATION").Bool()
@@ -64,7 +68,6 @@ func main() {
 	if err != nil {
 		log.Fatal("Error setting up event routing: ", err)
 		os.Exit(1)
-
 	}
 
 	//Use bolt for in-memory  - file caching
@@ -72,7 +75,6 @@ func main() {
 	if err != nil {
 		log.Fatal("Error opening bolt db: ", err)
 		os.Exit(1)
-
 	}
 	defer db.Close()
 
@@ -118,19 +120,35 @@ func main() {
 		events.LogEventTotals(*logEventTotalsTime, *dopplerEndpoint)
 	}
 
-	if logging.Connect() || *debug {
+	// Handle SIGINT and SIGTERM.
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
 
-		logging.LogStd("Connected to Syslog Server! Connecting to Firehose...", true)
+	var fh chan *devents.Envelope
 
-		firehose := firehose.CreateFirehoseChan(cfClient.Endpoint.DopplerEndpoint, cfClient.GetToken(), *subscriptionId, *skipSSLValidation)
-		if firehose != nil {
-			logging.LogStd("Firehose Subscription Succesfull! Routing events...", true)
-			events.RouteEvents(firehose, extraFields)
+	go func() {
+		if logging.Connect() || *debug {
+
+			logging.LogStd("Connected to Syslog Server! Connecting to Firehose...", true)
+
+			fh = firehose.CreateFirehoseChan(cfClient.Endpoint.DopplerEndpoint, cfClient.GetToken(), *subscriptionID, *skipSSLValidation)
+			if fh != nil {
+				logging.LogStd("Firehose Subscription Succesfull! Routing events...", true)
+				events.RouteEvents(fh, extraFields)
+			} else {
+				logging.LogError("Failed connecting to Firehose...Please check settings and try again!", "")
+			}
 		} else {
-			logging.LogError("Failed connecting to Firehose...Please check settings and try again!", "")
+			logging.LogError("Failed connecting to the Syslog Server...Please check settings and try again!", "")
 		}
+	}()
 
-	} else {
-		logging.LogError("Failed connecting to the Syslog Server...Please check settings and try again!", "")
+	select {
+	// Signaled when an interrupt event is sent.
+	case <-interrupt:
+		// Stop receiving any further signals.
+		signal.Stop(interrupt)
+		logging.LogStd("Closing firehose channel", true)
+		close(fh)
 	}
 }

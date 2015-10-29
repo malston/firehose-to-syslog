@@ -2,12 +2,13 @@ package events
 
 import (
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/Sirupsen/logrus"
 	"github.com/cloudfoundry-community/firehose-to-syslog/caching"
 	log "github.com/cloudfoundry-community/firehose-to-syslog/logging"
 	"github.com/cloudfoundry/sonde-go/events"
-	"strings"
-	"time"
 )
 
 type Event struct {
@@ -315,6 +316,11 @@ func (e *Event) AnnotateWithAppData() {
 
 		if cf_org_name != "" {
 			e.Fields["cf_org_name"] = cf_org_name
+		}
+
+		// Add custom field for storing logs into a folder structure for downstream indexing: orgNameValue/spaceNameValue/appNameValue
+		if e.Fields["cf_org_name"] != nil && e.Fields["cf_space_name"] != nil && e.Fields["cf_app_name"] != nil {
+			e.Fields["cf_info"] = "/" + e.Fields["cf_org_name"].(string) + "/" + e.Fields["cf_space_name"].(string) + "/" + e.Fields["cf_app_name"].(string) + "/"
 		}
 	}
 }
