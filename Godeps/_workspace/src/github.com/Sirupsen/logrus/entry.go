@@ -38,8 +38,9 @@ func NewEntry(logger *Logger) *Entry {
 
 // Returns a reader for the entry, which is a proxy to the formatter.
 func (entry *Entry) Reader() (*bytes.Buffer, error) {
+	ceeCookie := []byte("@cee:")
 	serialized, err := entry.Logger.Formatter.Format(entry)
-	return bytes.NewBuffer(serialized), err
+	return bytes.NewBuffer(append(ceeCookie, serialized...)), err
 }
 
 // Returns the string representation from the reader and ultimately the
