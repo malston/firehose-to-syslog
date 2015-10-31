@@ -1,4 +1,15 @@
 applications:
 - name: firehose-to-syslog
   buildpack: https://github.com/cloudfoundry/go-buildpack.git
-
+env:
+  API_ENDPOINT: https://api.run.pivotal.io
+  DEBUG: false
+  DOPPLER_ENDPOINT: wss://doppler.run.pivotal.io:443
+  EVENTS: LogMessage,ValueMetric,Error,ContainerMetric
+  FIREHOSE_PASSWORD: p3z@Pivotal
+  FIREHOSE_SUBSCRIPTION_ID: firehose-a
+  FIREHOSE_USER: firehose-user
+  LOG_EVENT_TOTALS: true
+  LOG_EVENT_TOTALS_TIME: 10s
+  SKIP_SSL_VALIDATION: true
+  SYSLOG_ENDPOINT: 10.9.8.50:514
