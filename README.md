@@ -177,11 +177,11 @@ For Mac OSX golang profiling do not work.
 		cf set-env firehose-to-syslog FIREHOSE_SUBSCRIPTION_ID firehose-to-syslog
 		cf set-env firehose-to-syslog FIREHOSE_USER  [your doppler.firehose enabled user]
 
-	1. Turn off the diego health check.
+1. Turn off the diego health check.
 
 		cf set-health-check firehose-to-syslog none
 
-	1. Restage the app.
+1. Restage the app.
 
 		cf push firehose-to-syslog
 
